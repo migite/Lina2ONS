@@ -27,6 +27,8 @@ game
 
 *start
 ; setwindow is a program block command (it crashes the engine inside *define)
+; windowback: sprites numbered up to 499 (the name plate) are drawn above the message window
+windowback
 setwindow 40,440,31,5,22,22,0,6,20,0,1,":a;window.png",16,400
 mov $1,"ピーター"
 mov %65,1
@@ -44,6 +46,7 @@ systemcall load
 goto *title
 
 *new_game
+bgmstop
 mov %64,0
 mov %80,0
 mov %130,0
@@ -79,16 +82,16 @@ return
 
 ; ------------------------------------------------------- name plate
 *s_textoff
-csp 900
+csp 400
 textoff
 return
 
 *s_nm
 getparam $90
-if $90=="" csp 900:return
+if $90=="" csp 400:return
 mov $91,":s/20,20,0;#ffffff"
 mov $91,$91+$90
-lsp 900,$91,52,408
+lsp 400,$91,52,408
 return
 
 ; ------------------------------------------------------- background

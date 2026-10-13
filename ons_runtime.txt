@@ -7,8 +7,10 @@
 ;  %500- other scratch values, $1 protagonist name.
 ;  Movie / CM registers: %125 %126 CM numbers of a game (V101[125] V101[126]), %186 CM to play,
 ;  %187 variant, %188 number of CMs, $92 movie file, $93 scratch string.
-;  Sprite 850 = the background picture (a sprite, not the native "bg" layer, so that "csp -1"
-;  in s_movie hides it along with everything else before mpegplay draws the movie).
+;  Sprite layers, bottom to top (ONScripter draws higher sprite numbers first): 999 = background
+;  picture, 998 = fadeout/fadein cover, 997 = flash cover, 900 = name plate, 840/830/820 =
+;  right/center/left character picture. None of these use the native "bg"/"ld"/"cl" layers, so
+;  that "csp -1" in s_movie hides everything at once before mpegplay draws the movie.
 ; ======================================================================
 *define
 caption "ハヤシ迷作劇場"
@@ -40,7 +42,7 @@ goto *title
 *title
 bgmstop
 mov $93,":c;title01.bmp"
-lsp 850,$93,0,0
+lsp 999,$93,0,0
 print 10,800
 bgm "music\M01TITLE.ogg"
 select "はじめから",*new_game,"ロード",*title_load
@@ -95,14 +97,13 @@ return
 
 ; ------------------------------------------------------- movies
 ; The movies are MPEG-1 (video\*.mov converted by tools\mov_to_mpg.py). A click or Esc skips them.
-; csp -1 hides every sprite (background included, see sprite 850 above) so mpegplay draws onto an
-; empty screen; the native "bg" command is not used here (it did not play well with mpegplay on
-; some ONScripter builds and left the movie area solid black).
+; csp -1 hides every sprite (background included, see the sprite layer list above) so mpegplay
+; draws onto an empty screen; the native "bg" command is not used here (it did not play well with
+; mpegplay on some ONScripter builds and left the movie area solid black).
 ; s_movie file
 *s_movie
 getparam $92
 bgmstop
-cl a,0
 textoff
 mov %6,-1
 mov %7,-1
@@ -159,7 +160,7 @@ return
 getparam $90,%180
 mov $93,":c;"
 mov $93,$93+$90
-lsp 850,$93,0,0
+lsp 999,$93,0,0
 gosub *s_chr_draw
 if %180<=0 print 1:return
 print 10,%180
@@ -169,38 +170,47 @@ return
 ; state: %6 left/only character, %7 right character, %8/%9 their expressions,
 ;        %5 slot that was changed last, -1 = empty
 *s_chrfile
+; %190=character, %191=expression, %193=slot (0=l,1=c,2=r) -> $90=picture, %192=x position
 ;@@CHRFILE@@
 return
 
 *s_chr_draw
-cl a,0
+csp 820
+csp 830
+csp 840
 if %6<0 && %7<0 return
 if %6>=0 && %7<0 goto *s_cd_one
 if %6>=0 && %7>=0 goto *s_cd_two
 mov %190,%7
 mov %191,%9
+mov %193,2
 gosub *s_chrfile
-ld r,$90,0
+lsp 840,$90,%192,0
 return
 *s_cd_one
 mov %190,%6
 mov %191,%8
+mov %193,1
 gosub *s_chrfile
-ld c,$90,0
+lsp 830,$90,%192,0
 return
 *s_cd_two
 mov %190,%6
 mov %191,%8
+mov %193,0
 gosub *s_chrfile
-ld l,$90,0
+lsp 820,$90,%192,0
 mov %190,%7
 mov %191,%9
+mov %193,2
 gosub *s_chrfile
-ld r,$90,0
+lsp 840,$90,%192,0
 return
 
 *s_chr_reset
-cl a,0
+csp 820
+csp 830
+csp 840
 return
 
 ; s_chr mode,fade,expression,character   (mode 1 = hide the character)
@@ -258,18 +268,20 @@ return
 getparam %180,%181
 ; w.bmp / b.bmp are 800x600 solid white / black pictures from the game data.
 ; ":c;" = no transparency, ":a;" = use the alpha channel of the PNG (the default would key out the top-left colour)
-if %181==1 lsp 999,":c;w.bmp",0,0
-if %181!=1 lsp 999,":c;b.bmp",0,0
+if %181==1 lsp 998,":c;w.bmp",0,0
+if %181!=1 lsp 998,":c;b.bmp",0,0
 if %180<=0 print 1
 if %180>0 print 10,%180
 mov %6,-1
 mov %7,-1
-cl a,0
+csp 820
+csp 830
+csp 840
 return
 
 *s_fadein
 getparam %180,%181
-csp 999
+csp 998
 if %180<=0 print 1:return
 print 10,%180
 return
@@ -280,10 +292,10 @@ quakey 6,300
 return
 
 *s_flash
-lsp 998,":c;w.bmp",0,0
+lsp 997,":c;w.bmp",0,0
 print 1
 wait 60
-csp 998
+csp 997
 print 10,250
 return
 

@@ -864,11 +864,23 @@ class Converter:
 
 
 # ---------------------------------------------------------------- runtime
+# Character pictures are shown as plain sprites (not the native "ld"/"cl" tachie layer, which
+# does not mix well with mpegplay, see s_movie). *s_chrfile below reproduces "ld"'s own layout:
+# x = (slot+1)*200 - picture_width/2 (slot 0/1/2 = left/center/right of the 800 wide screen),
+# y = 0 (every picture is 600 px tall, the full screen height). The width comes from the game's
+# own library code (same value the original engine itself used to centre the picture).
 def chr_table(chars):
     lines = []
     for ch in sorted(chars):
-        for ex, f in enumerate(chars[ch][1]):
-            lines.append('if %%190==%d && %%191==%d mov $90,":a;%s"' % (ch, ex, os.path.splitext(f)[0] + '.png'))
+        width, files = chars[ch]
+        if width is None:
+            continue
+        for ex, f in enumerate(files):
+            name = ':a;' + os.path.splitext(f)[0] + '.png'
+            for slot in range(3):
+                x = (slot + 1) * 200 - width // 2
+                lines.append('if %%190==%d && %%191==%d && %%193==%d mov $90,"%s":mov %%192,%d'
+                              % (ch, ex, slot, name, x))
     return '\n'.join(lines)
 
 

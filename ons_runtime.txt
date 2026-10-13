@@ -90,7 +90,7 @@ if %64!=7 return
 return
 
 ; ------------------------------------------------------- movies
-; The movies are MPEG-1 (video\*.mov converted by tools\mov_to_mpg.py into unpacked\movie). A click or Esc skips them.
+; The movies are MPEG-1 (video\*.mov converted by tools\mov_to_mpg.py). A click or Esc skips them.
 ; s_movie file
 *s_movie
 getparam $92

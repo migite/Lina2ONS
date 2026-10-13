@@ -6,7 +6,9 @@
 ;  %190-%199 scratch, %300- persistent V101[n>=175], %400- V108 flags (CG unlock),
 ;  %500- other scratch values, $1 protagonist name.
 ;  Movie / CM registers: %125 %126 CM numbers of a game (V101[125] V101[126]), %186 CM to play,
-;  %187 variant, %188 number of CMs, $92 movie file.
+;  %187 variant, %188 number of CMs, $92 movie file, $93 scratch string.
+;  Sprite 850 = the background picture (a sprite, not the native "bg" layer, so that "csp -1"
+;  in s_movie hides it along with everything else before mpegplay draws the movie).
 ; ======================================================================
 *define
 caption "ハヤシ迷作劇場"
@@ -37,7 +39,9 @@ goto *title
 ; ---------------------------------------------------------------- title
 *title
 bgmstop
-bg "title01.bmp",10,800
+mov $93,":c;title01.bmp"
+lsp 850,$93,0,0
+print 10,800
 bgm "music\M01TITLE.ogg"
 select "はじめから",*new_game,"ロード",*title_load
 
@@ -91,18 +95,21 @@ return
 
 ; ------------------------------------------------------- movies
 ; The movies are MPEG-1 (video\*.mov converted by tools\mov_to_mpg.py). A click or Esc skips them.
+; csp -1 hides every sprite (background included, see sprite 850 above) so mpegplay draws onto an
+; empty screen; the native "bg" command is not used here (it did not play well with mpegplay on
+; some ONScripter builds and left the movie area solid black).
 ; s_movie file
 *s_movie
 getparam $92
 bgmstop
-csp -1
 cl a,0
 textoff
 mov %6,-1
 mov %7,-1
-bg black,1
+csp -1
+print 1
 mpegplay $92,1
-bg black,1
+print 1
 return
 
 ; CMs: %125 / %126 hold the CM numbers of a game (1..%188, picked by the engine like op.spr does),
@@ -150,7 +157,9 @@ return
 ; ------------------------------------------------------- background
 *s_bg
 getparam $90,%180
-bg $90,0
+mov $93,":c;"
+mov $93,$93+$90
+lsp 850,$93,0,0
 gosub *s_chr_draw
 if %180<=0 print 1:return
 print 10,%180

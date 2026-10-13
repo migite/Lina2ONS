@@ -17,6 +17,7 @@ Output
   t_*.png window.png       sprites and message window converted from .kbp (kbp_to_png.py)
   sel\\sel_NN.png          choice buttons cut out of select_mes.kbp (normal | highlighted)
   music\\*.ogg voice\\*.ogg wav\\*.wav   sounds that the script uses
+  movie\\*.mpg             movies (MPEG-1, converted by tools\\mov_to_mpg.py into unpacked\\movie)
 
 The engine also needs a font named default.ttf in the same folder (not included).
 """
@@ -96,7 +97,8 @@ def convert_assets(text, unpacked, out, copy):
 
     for folder, src_dir, pattern in (('voice', 'voice_ogg', r'voice\\([^"]+)"'),
                                      ('music', 'music_ogg', r'music\\([^"]+)"'),
-                                     ('wav', 'wav', r'wav\\([^"]+)"')):
+                                     ('wav', 'wav', r'wav\\([^"]+)"'),
+                                     ('movie', 'movie', r'movie\\([^"]+)"')):
         for n in sorted(set(re.findall(pattern, text))):
             need(os.path.join(unpacked, src_dir, n), os.path.join(folder, n))
     return missing
@@ -123,8 +125,13 @@ def main():
             return None
         return set((os.path.splitext(n)[0] if strip_ext else n).lower() for n in os.listdir(d))
 
+    movies = listing('movie', True)
+    if movies is None:
+        print('note: %s not found, the movies are left out (run tools\\extract_all.bat with ffmpeg installed)'
+              % os.path.join(unpacked, 'movie'))
     text, warnings, _ = svs_to_ons.build(os.path.join(unpacked, 'script_decoded'),
-                                         voices=listing('voice_ogg', True), sounds=listing('wav', False))
+                                         voices=listing('voice_ogg', True), sounds=listing('wav', False),
+                                         movies=movies)
     try:
         data = text.replace('\n', '\r\n').encode(encoding)
     except UnicodeEncodeError as ex:

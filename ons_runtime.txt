@@ -44,6 +44,7 @@ systemcall load
 goto *title
 
 *new_game
+bgmstop
 mov %64,0
 mov %80,0
 mov %130,0

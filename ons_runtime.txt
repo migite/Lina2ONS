@@ -5,6 +5,8 @@
 ;  Variable map: %0-%174 story flags (V101[n]), %179 choice result,
 ;  %190-%199 scratch, %300- persistent V101[n>=175], %400- V108 flags (CG unlock),
 ;  %500- other scratch values, $1 protagonist name.
+;  Movie / CM registers: %125 %126 CM numbers of a game (V101[125] V101[126]), %186 CM to play,
+;  %187 variant, %188 number of CMs, $92 movie file.
 ; ======================================================================
 *define
 caption "ハヤシ迷作劇場"
@@ -23,13 +25,13 @@ defsub s_fadeout
 defsub s_quake
 defsub s_flash
 defsub s_select
+defsub s_movie
 game
 
 *start
 ; setwindow is a program block command (it crashes the engine inside *define)
 setwindow 40,440,31,5,22,22,0,6,20,0,1,":a;window.png",16,400
 mov $1,"ピーター"
-mov %65,1
 goto *title
 
 ; ---------------------------------------------------------------- title
@@ -48,6 +50,12 @@ bgmstop
 mov %64,0
 mov %80,0
 mov %130,0
+; %65 = 0: the first eye catch is followed by the second CM (see eye.spr)
+mov %65,0
+;@@MOVIE_OP@@
+gosub *s_cm_pick
+mov %186,%125
+gosub *s_cm_play
 goto *s_chapter
 
 ; Chapter dispatch, taken from name.spr (chapter %64, route %130) and save.spr (ending by %130).
@@ -73,9 +81,56 @@ if %64>=7 && %130==3 goto *ed4_start
 if %64>=7 && %130==4 goto *ed5_start
 goto *title
 
-; next.spr (chapter preview, CM and save prompt) is not converted; it only advances the chapter.
+; next.spr (chapter preview and save prompt) is not converted; it only advances the chapter.
+; Leaving the last chapter (%64 becomes 7) plays the ending movie.
 *s_next_preview
 add %64,1
+if %64!=7 return
+;@@MOVIE_ED@@
+return
+
+; ------------------------------------------------------- movies
+; The movies are MPEG-1 (video\*.mov converted by tools\mov_to_mpg.py into unpacked\movie). A click or Esc skips them.
+; s_movie file
+*s_movie
+getparam $92
+bgmstop
+csp -1
+cl a,0
+textoff
+mov %6,-1
+mov %7,-1
+bg black,1
+mpegplay $92,1
+bg black,1
+return
+
+; CMs: %125 / %126 hold the CM numbers of a game (1..%188, picked by the engine like op.spr does),
+; the first one is played after the opening, the second one between the first two eye catches.
+*s_cm_pick
+mov %125,0
+mov %126,0
+;@@CMCOUNT@@
+if %188<=0 return
+rnd %125,%188
+add %125,1
+if %188<2 return
+*s_cm_pick2
+rnd %126,%188
+add %126,1
+if %126==%125 goto *s_cm_pick2
+return
+
+; s_cm_play: plays the CM whose number is in %186 (0 = none)
+*s_cm_play
+if %186<=0 return
+gosub *s_cmfile
+s_movie $92
+return
+
+; %186 = CM number (and %187 = which of its movies) -> $92
+*s_cmfile
+;@@CMFILE@@
 return
 
 ; ------------------------------------------------------- name plate

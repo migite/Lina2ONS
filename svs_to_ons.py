@@ -275,10 +275,21 @@ ARITH = {'+': 'add', '-': 'sub', '*': 'mul', '/': 'div', '%': 'mod'}
 TEMP0 = 190
 CONSTS = {
     (0x101, 80): 0,     # V101[80] = scene replay mode, never active in a normal playthrough
-    (0x109, 0): 0,      # T109(0) = movie / key state; movies are not played, so "finished, no key"
+    (0x109, 0): 0,      # T109(0) = movie / key state; the wait loops after a movie start are skipped, because
+                        # s_movie (mpegplay) returns only when the movie has ended or was cancelled
 }
 SEL_RESULT = 179                # runtime register holding the choice result
-IGNORED_CMDS = {0, 8, 17, 18, 45, 51, 82, 130, 143, 435}   # frame waits, progress saves, movies ...
+MOVIE_CMD = 435                 # starts a movie (the wait loop with CMD433 / CMD226 / CMD434 follows)
+IGNORED_CMDS = {0, 8, 17, 18, 45, 51, 82, 130, 143, 433, 434}   # frame waits, progress saves, movie polling ...
+CM_SLOT = 126                   # V101[126]: the CM that cm.spr plays between the two eye catches
+CM_REGISTER = 186               # runtime register: the CM number that s_cm_play plays
+OPENING_MOVIE = 'mei_demo'      # op.spr, played when a new game starts
+ENDING_MOVIE = 'ed_demo'        # ed.spr, played after the last chapter
+# cm.spr: CM number -> movies (one is picked at random). The numbers 2, 3, 4 and 13 are slide shows without a movie.
+CM_MOVIES = {
+    1: ['pure_cm'], 5: ['ayakasi_cm'], 6: ['demo_m004fix'], 7: ['paru_cm1', 'paru_cm2'], 8: ['silk_cm'],
+    9: ['of'], 10: ['uta'], 11: ['giri_cm'], 12: ['TG1', 'TG2'], 14: ['youko', 'o_love'],
+}
 
 
 class Event:
@@ -292,12 +303,13 @@ class Event:
 
 
 class Converter:
-    def __init__(self, lib, vars_, converted, voices=None, sounds=None):
+    def __init__(self, lib, vars_, converted, voices=None, sounds=None, movies=None):
         self.lib = lib
         self.vars = vars_
         self.converted = converted
         self.voices = voices        # lower case voice names that exist (None: do not check)
         self.sounds = sounds        # lower case sound effect file names that exist
+        self.movies = movies or set()   # lower case movie names (no extension) that exist
         self.bg = lib.bg()
         self.bgm = lib.bgm()
         self.chars = lib.chars()
@@ -686,13 +698,32 @@ class Converter:
             elif tgt == 'next':
                 self.out('gosub *s_next_preview')
                 self.cur_name = None
+            elif tgt == 'cm':
+                self.out('mov %%%d,%%%d' % (CM_REGISTER, CM_SLOT))
+                self.out('gosub *s_cm_play')
+                self.out('goto *%s_start' % self.base)       # cm.spr hands over to eye.spr again
+                self.cur_name = None
             else:
                 self.stubs.add(tgt)
                 self.out('goto *stub_%s' % tgt)
             return
+        if n == MOVIE_CMD:
+            self.movie(args)
+            return
         if n in IGNORED_CMDS:
             return
         self.comment('CMD%d(%s)' % (n, ', '.join(fmt_ast(a) for a in args if a[0] != 'asg')))
+
+    def movie(self, args):
+        name = next((a[1] for a in args if a[0] == 's'), None)
+        if name is None:
+            raise Unsupported('movie without a file name')
+        base = os.path.splitext(name)[0]
+        if base.lower() not in self.movies:
+            self.comment('missing movie %s' % name)
+            return
+        self.out('s_movie "movie\\%s.mpg"' % base)
+        self.cur_name = None            # s_movie removes the name plate
 
     # ---- driver -------------------------------------------------------------------------
     def reachable(self, sc, evs, off2k, entry):
@@ -857,13 +888,43 @@ def select_code(sels):
     return '\n'.join(out)
 
 
+def movie_entries(movies):
+    """CMs that can be played: CM number order, every entry lists the movies of one CM (one is picked at random)."""
+    entries = []
+    for n in sorted(CM_MOVIES):
+        files = [f for f in CM_MOVIES[n] if f.lower() in movies]
+        if files:
+            entries.append(files)
+    return entries
+
+
+def cm_table(entries):
+    out = []
+    for i, files in enumerate(entries, 1):
+        if len(files) > 1:
+            out.append('if %%%d==%d rnd %%187,%d' % (CM_REGISTER, i, len(files)))
+        for j, f in enumerate(files):
+            cond = '%%%d==%d' % (CM_REGISTER, i) + (' && %%187==%d' % j if len(files) > 1 else '')
+            out.append('if %s mov $92,"movie\\%s.mpg"' % (cond, f))
+    return '\n'.join(out)
+
+
+def movie_play(name, movies):
+    return 's_movie "movie\\%s.mpg"' % name if name.lower() in movies else ''
+
+
 def build_runtime(lib, conv):
     with open(os.path.join(HERE, 'ons_runtime.txt'), encoding='utf-8') as f:
         rt = f.read().replace('\r\n', '\n')
     sels = lib.selects()
+    entries = movie_entries(conv.movies)
     rt = rt.replace(';@@CHRFILE@@', chr_table(conv.chars))
     rt = rt.replace(';@@SELECTJUMP@@', '\n'.join('if %%178==%d goto *s_sel_%d' % (s, s) for s in sorted(sels)))
     rt = rt.replace(';@@SELECT@@', select_code(sels))
+    rt = rt.replace(';@@CMFILE@@', cm_table(entries))
+    rt = rt.replace(';@@CMCOUNT@@', 'mov %%188,%d' % len(entries))
+    rt = rt.replace(';@@MOVIE_OP@@', movie_play(OPENING_MOVIE, conv.movies))
+    rt = rt.replace(';@@MOVIE_ED@@', movie_play(ENDING_MOVIE, conv.movies))
     return rt
 
 
@@ -876,16 +937,17 @@ def default_scripts(src):
     return names
 
 
-def build(src, names=None, voices=None, sounds=None):
+def build(src, names=None, voices=None, sounds=None, movies=None):
     """Convert the scripts in src. Returns (script text with \\n line ends, warnings, converter).
 
     voices / sounds: optional sets of existing file names (lower case, voices without extension);
-    references to anything else are written as comments."""
+    references to anything else are written as comments.
+    movies: lower case names (no extension) of the converted movies; movies that are not listed are not played."""
     names = names or default_scripts(src)
     scripts = {n: Script(open(os.path.join(src, n + '.spr'), 'rb').read()) for n in names}
     ref = scripts.get('mei01') or next(iter(scripts.values()))
     lib = Library(ref)
-    conv = Converter(lib, VarMap(), set(n.lower() for n in names), voices, sounds)
+    conv = Converter(lib, VarMap(), set(n.lower() for n in names), voices, sounds, movies)
     body = []
     for n in names:
         body.extend(conv.convert(n, scripts[n]))
@@ -905,7 +967,9 @@ def main():
     ap.add_argument('--encoding', default='cp932')
     a = ap.parse_args()
 
-    text, warnings, _ = build(a.src, a.scripts)
+    mdir = os.path.join(os.path.dirname(os.path.abspath(a.src)), 'movie')
+    movies = set(os.path.splitext(n)[0].lower() for n in os.listdir(mdir)) if os.path.isdir(mdir) else None
+    text, warnings, _ = build(a.src, a.scripts, movies=movies)
     os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     with open(a.out, 'w', encoding=a.encoding, newline='') as f:
         f.write(text.replace('\n', '\r\n'))

@@ -1,6 +1,13 @@
-# スクリプト変換ツール 使い方
-
-展開済みのデータ(`unpacked`)から、ONScripter 向けのゲーム一式を作るツールです。データの展開そのものは `tools` フォルダのツールで行います。
+# Lina2ONS  
+林組より2002年に発売された「ハヤシ迷作劇場」をONScripter向けに変換するコンバータです。  
+PPC向けのおまけのほうでなく、Windows向け本体を使います。  
+## つかいかた
+[HayashiArchiveExtractor](https://github.com/migite/HayashiArchiveExtractor/)にて展開したファイルを変換します。  
+展開済みのデータ(`unpacked`)から、ONScripter 向けのゲーム一式を作るツールです。  
+データの展開そのものは `tools` フォルダのツールで行います。  
+<br>
+Prince of Sea氏制作の[ONScripter_Multi_Converter](https://github.com/Prince-of-sea/ONScripter_Multi_Converter)へコンバータの提供を行っております。(Ver.2.4.7以降)  
+ONScripter変換のみを使う場合はこちらを使ってください。  
 
 ## 動作環境
 

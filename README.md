@@ -9,6 +9,8 @@ PPC向けのおまけのほうでなく、Windows向け本体を使います。
 Prince of Sea氏制作の[ONScripter_Multi_Converter](https://github.com/Prince-of-sea/ONScripter_Multi_Converter)へコンバータの提供を行っております。(Ver.2.4.7以降)  
 展開から変換まで一発で行えますので、ONScripter変換のみを使う場合はこちらを使ってください。  
 
+素の状態だと動画のエンコードうまくいってなくて音だけ流れる状態なのでMulti Converter使ってください  
+~~Multi Converter噛ますと治るのもよくわかってない、面倒なので直す気があんまりない~~
 ## 動作環境
 
 - Windows
